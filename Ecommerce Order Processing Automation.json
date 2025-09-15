@@ -1,0 +1,1185 @@
+{
+  "name": "Ecommerce Order Processing Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/orders",
+        "options": {
+          "responseData": ""
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -480
+      ],
+      "id": "91fb79ab-8259-456f-98a6-bcce38501bf6",
+      "name": "Webhook",
+      "webhookId": "a95aaacd-dddd-4058-9df4-0c5a132aedfc"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": []
+        },
+        "includeOtherFields": true,
+        "include": "selected",
+        "includeFields": "body.order_id, body.customer.name, body.customer.email, body.items, body.payment.status, body.payment.provider, body.payment.payment_intent_id",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        -480
+      ],
+      "id": "b377f10f-c752-491f-8837-935a100e42bc",
+      "name": "Set"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "inventory",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1120,
+        -576
+      ],
+      "id": "141454ce-f370-45c9-a84c-707ac0da0e59",
+      "name": "Google Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xKFjjoUiHYoA9Nd2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fbfa9f01-9027-44ab-b89d-8971d2fd487d",
+              "leftValue": "={{ $json.order_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "84112c8c-d443-462d-8ebd-58b4dadd86bc",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "03428b08-b5a0-404a-a3ce-4d297f3c3cdb",
+              "leftValue": "={{ $json.items }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "5f133233-9132-46d7-a8d8-2cd31d2ce8ed",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "paid",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        -480
+      ],
+      "id": "b76784d8-fa98-4b80-af2d-a0c7fd7da1cc",
+      "name": "Payment Check"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all inventory rows\nconst inventoryItems = $items(\"Google Sheet\").map(i => i.json); // Google Sheets output\n\n// Get all order items from Set node\nconst orderItems = $items(\"Set\")[0].json.items; // adjust node name if different\n\n// Array to store results\nconst result = [];\n\norderItems.forEach(item => {\n  // Find matching inventory row by SKU\n  const inventory = inventoryItems.find(row => row.sku === item.sku);\n\n  if (inventory) {\n    result.push({\n      json: {\n        sku: item.sku,\n        name: item.name,\n        qty_ordered: item.qty,\n        stock_qty: inventory.stock_qty,\n        price: inventory.price,\n        in_stock: Number(inventory.stock_qty) >= Number(item.qty)\n      }\n    });\n  } else {\n    // SKU not found in inventory\n    result.push({\n      json: {\n        sku: item.sku,\n        name: item.name,\n        qty_ordered: item.qty,\n        stock_qty: 0,\n        price: 0,\n        in_stock: false\n      }\n    });\n  }\n});\n\nreturn result;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -576
+      ],
+      "id": "0ccf7132-0e95-4c60-ba6d-89271d34c572",
+      "name": "Inventory Check"
+    },
+    {
+      "parameters": {
+        "resource": "conversion",
+        "htmlContent": "={{ $json.html }}",
+        "filename": "invoice",
+        "conversionOptions": {
+          "output": "file"
+        }
+      },
+      "type": "@pdfgeneratorapi/n8n-nodes-pdf-generator-api.pdfGeneratorApi",
+      "typeVersion": 1,
+      "position": [
+        2016,
+        -672
+      ],
+      "id": "8362b83c-2513-4ae6-9c37-9b1c9a5dcd9e",
+      "name": "PDF Generator API",
+      "credentials": {
+        "pdfGeneratorApi": {
+          "id": "rmqu1h1Mnia1IG9e",
+          "name": "PDF Generator account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const order = $items(\"Set\")[0].json;  // Adjust node name if different\nconst item = $items(\"Inventory Check\")[0].json; // the inventory/stock node output\n\nconst html = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Invoice for Order ${order.order_id}</title>\n  <style>\n    body { font-family: Arial, sans-serif; line-height: 1.5; }\n    table { border-collapse: collapse; width: 100%; margin-top: 20px; }\n    th, td { border: 1px solid #000; padding: 8px; text-align: left; }\n    th { background-color: #f2f2f2; }\n    h1 { color: #333; }\n    p { margin: 5px 0; }\n  </style>\n</head>\n<body>\n  <h1>Invoice for Order ${order.order_id}</h1>\n  <p><strong>Customer:</strong> ${order.name} (${order.email})</p>\n  <table>\n    <thead>\n      <tr>\n        <th>SKU</th>\n        <th>Product</th>\n        <th>Qty</th>\n        <th>Unit Price</th>\n        <th>Total</th>\n      </tr>\n    </thead>\n    <tbody>\n      <tr>\n        <td>${item.sku}</td>\n        <td>${item.name}</td>\n        <td>${item.qty_ordered}</td>\n        <td>${item.price}</td>\n        <td>${item.qty_ordered * item.price}</td>\n      </tr>\n    </tbody>\n  </table>\n  <p><strong>Grand Total:</strong> ${item.qty_ordered * item.price}</p>\n</body>\n</html>\n`;\n\nreturn [{ json: { html } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        -672
+      ],
+      "id": "9b59e0d3-25c1-4fdf-9fb4-fc832c598b54",
+      "name": "Code to HTML"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7e5d34e2-f7f5-4f6c-8aa9-3d0a054408c0",
+              "leftValue": "={{ $json.stock_qty }}",
+              "rightValue": 5,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2912,
+        -672
+      ],
+      "id": "4dcb6f67-58fe-4290-a501-43b969296f91",
+      "name": "Stock Alert Condition"
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "ommehta4920@gmail.com",
+        "fromName": "Om Mehta",
+        "toEmail": "ommehta4920@gmail.com",
+        "subject": "Low Stock Alert",
+        "contentValue": "={{ $('Update stock').item.json.sku }} : {{ $('Update stock').item.json.stock_qty }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        3136,
+        -672
+      ],
+      "id": "520347fd-e981-4a8e-855d-51e6dd9e55e6",
+      "name": "Stock alert mail",
+      "credentials": {
+        "sendGridApi": {
+          "id": "LUr0GmFVZZOLRIBF",
+          "name": "SendGrid account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "inventory",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sku": "={{ $('Inventory Check').item.json.sku }}",
+            "stock_qty": "={{ $('Inventory Check').item.json.stock_qty - $('Inventory Check').item.json.qty_ordered }}"
+          },
+          "matchingColumns": [
+            "sku"
+          ],
+          "schema": [
+            {
+              "id": "sku",
+              "displayName": "sku",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "product_name",
+              "displayName": "product_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "stock_qty",
+              "displayName": "stock_qty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "price",
+              "displayName": "price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2688,
+        -672
+      ],
+      "id": "8b35339f-319e-41d5-9ae5-62c5e86a8c1d",
+      "name": "Update stock",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xKFjjoUiHYoA9Nd2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtMinute": {}
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        64
+      ],
+      "id": "93813828-b40b-4a3a-8140-970bd6204183",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "ommehta4920@gmail.com",
+        "fromName": "Om Mehta",
+        "toEmail": "={{ $items(\"Set\")[0].json.email }}",
+        "subject": "=Order Confirmation - {{ $items(\"Set\")[0].json.order_id }}",
+        "contentValue": "=Hi {{ $items(\"Set\")[0].json.name }},\n\nThank you for your order {{ $items(\"Set\")[0].json.order_id }}.\nPlease find your invoice attached.\n\nRegards,  \nYour Store",
+        "additionalFields": {
+          "attachments": "invoice.pdf"
+        }
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        -672
+      ],
+      "id": "b2141301-3f43-45be-86da-e6d83490d5cb",
+      "name": "Customer Invoice mail",
+      "credentials": {
+        "sendGridApi": {
+          "id": "LUr0GmFVZZOLRIBF",
+          "name": "SendGrid account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 307530835,
+          "mode": "list",
+          "cachedResultName": "sales",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit#gid=307530835"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "order_id": "={{ $('Set').first().json.order_id }}",
+            "customer_name": "={{ $('Set').first().json.name }}",
+            "customer_email": "={{ $('Set').first().json.email }}",
+            "sku": "={{ $('Set').first().json.items[0].sku }}",
+            "product_name": "={{ $('Set').first().json.items[0].name }}",
+            "qty_ordered": "={{ $('Set').first().json.items[0].qty }}",
+            "price": "={{ $('Set').first().json.items[0].price }}",
+            "total": "={{ $('Set').first().json.items[0].qty  *  $('Set').first().json.items[0].price }}",
+            "order_date": "={{ new Date().toISOString().split(\"T\")[0] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "order_id",
+              "displayName": "order_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_name",
+              "displayName": "customer_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_email",
+              "displayName": "customer_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sku",
+              "displayName": "sku",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "product_name",
+              "displayName": "product_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "qty_ordered",
+              "displayName": "qty_ordered",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "price",
+              "displayName": "price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total",
+              "displayName": "total",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "order_date",
+              "displayName": "order_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2464,
+        -672
+      ],
+      "id": "9bd46181-85f5-4a75-97e2-c72c04250f38",
+      "name": "Sales Record Append",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xKFjjoUiHYoA9Nd2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e5643142-2a7d-460c-829f-aa037c230dea",
+              "leftValue": "={{ $json.in_stock }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1568,
+        -576
+      ],
+      "id": "15ebaed4-c475-41d7-bcf7-507acadb4814",
+      "name": "Stock Check Condition"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 307530835,
+          "mode": "list",
+          "cachedResultName": "order",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit#gid=307530835"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "order_date",
+              "lookupValue": "={{ $now.format('yyyy-MM-dd') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        64
+      ],
+      "id": "2a97b17b-da3c-423d-b409-a8609aa0220e",
+      "name": "Sales Record Fetch",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xKFjjoUiHYoA9Nd2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $items(\"Sales Record Fetch\").map(i => i.json);\n\nlet totalOrders = rows.length;\nlet totalRevenue = 0;\nlet totalItems = 0;\n\nrows.forEach(r => {\n  totalRevenue += Number(r.qty_ordered) * Number(r.price);\n  totalItems += Number(r.qty_ordered);\n});\n\nreturn [{\n  json: {\n    date: new Date().toISOString().split(\"T\")[0],\n    totalOrders,\n    totalRevenue,\n    totalItems\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        64
+      ],
+      "id": "f8d88cc9-b213-4d45-8d23-36ab4a29db91",
+      "name": "Filtering Data for Chart"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://quickchart.io/chart",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chart\": {\n    \"type\": \"bar\",\n    \"data\": {\n      \"labels\": [\"Orders\",\"Revenue\",\"Items\"],\n      \"datasets\": [\n        {\n          \"label\": \"Daily Report\",\n          \"data\": [\n            {{ $json.total_orders }},\n            {{ $json.total_revenue }},\n            {{ $json.total_items }}\n          ]\n        }\n      ]\n    }\n  },\n  \"width\": 600,\n  \"height\": 400,\n  \"backgroundColor\": \"white\"\n}\n",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        896,
+        64
+      ],
+      "id": "1dc562bc-f1f9-48dd-87ce-6006b78a51b9",
+      "name": "Creating Chart"
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "ommehta4920@gmail.com",
+        "fromName": "Om Mehta",
+        "toEmail": "ommehta4920@gmail.com",
+        "subject": "=Daily Sales Report - {{ $json.date }}",
+        "contentValue": "=Hello Team,\n\nPlease find attached the daily sales report of {{ $json.date }} with chart.\n\nRegards,\nn8n Automation",
+        "additionalFields": {
+          "attachments": "data"
+        }
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        64
+      ],
+      "id": "ff78d244-3c28-4438-87e5-852e00fa7eee",
+      "name": "Send an email",
+      "credentials": {
+        "sendGridApi": {
+          "id": "LUr0GmFVZZOLRIBF",
+          "name": "SendGrid account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -160
+      ],
+      "id": "297b44d3-03e0-4ff9-bbd0-8b97f6dad0e3",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 260148655,
+          "mode": "list",
+          "cachedResultName": "Sales Dashboard",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit#gid=260148655"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "total_orders": "={{ $json.totalOrders }}",
+            "total_revenue": "={{ $json.totalRevenue }}",
+            "total_items": "={{ $json.totalItems }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_orders",
+              "displayName": "total_orders",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_revenue",
+              "displayName": "total_revenue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_items",
+              "displayName": "total_items",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        64
+      ],
+      "id": "715cef70-5944-4c29-b478-107843c24cd9",
+      "name": "Sales Dashboard Append",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xKFjjoUiHYoA9Nd2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 123225129,
+          "mode": "list",
+          "cachedResultName": "Error log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-a6M019D56wkhP4ue95RQ1SsReWZLqvs98yuyyVTHnI/edit#gid=123225129"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow": "={{$json.workflow.name}}",
+            "node": "={{$json.workflow.name}}",
+            "errorMessage": "={{ $json.execution.error.message }}",
+            "time": "={{ $now }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "workflow",
+              "displayName": "workflow",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "node",
+              "displayName": "node",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "errorMessage",
+              "displayName": "errorMessage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        -160
+      ],
+      "id": "a5b8310f-de9f-40c6-8875-5a59c85a2857",
+      "name": "Error Log Append",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "xKFjjoUiHYoA9Nd2",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.stripe.com/v1/payment_intents/{{ $json.payment_intent_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        -480
+      ],
+      "id": "eb626f28-4f4e-42d2-9a25-53728a9f22fd",
+      "name": "Stripe Payment Verification",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "FrWNpEFT5ZaDFuVs",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "ommehta4920@gmail.com",
+        "fromName": "Om Mehta",
+        "toEmail": "={{ $('Set').item.json.email }}",
+        "subject": "=Payment Failed for Order {{ $('Set').item.json.order_id }}",
+        "contentValue": "=Hello {{ $('Set').item.json.name }},\n\nUnfortunately, we could not verify the payment for your order <b>{{ $('Set').item.json.order_id }}</b>.\n\nPlease check your payment details or try again.  \nIf you believe this is a mistake, contact our support team.\n\nThank you,  \nE-Commerce Team",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -384
+      ],
+      "id": "431073c4-3cf4-4242-ab8c-a51cfca18d08",
+      "name": "Payment Fail Mail",
+      "credentials": {
+        "sendGridApi": {
+          "id": "LUr0GmFVZZOLRIBF",
+          "name": "SendGrid account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "mail",
+        "fromEmail": "ommehta4920@gmail.com",
+        "fromName": "Om Mehta",
+        "toEmail": "ommehta4920@gmail.com",
+        "subject": "Stock not available",
+        "contentValue": "=Hello Admin, \n\nFor the Product Id:{{ $('Stock Check Condition').item.json.sku }} the stock is not available.\n\nThank you,\nTeam",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.sendGrid",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        -480
+      ],
+      "id": "02c4dfad-9d39-4a1f-ad60-aa8f729b52bc",
+      "name": "Stock not found",
+      "credentials": {
+        "sendGridApi": {
+          "id": "LUr0GmFVZZOLRIBF",
+          "name": "SendGrid account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a3e618a5-ba75-43c2-a3f8-d38507e6597b",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "=succeeded",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        -480
+      ],
+      "id": "635f7c79-e460-4b7c-a4f1-ec2ec5ec0198",
+      "name": "Stripe Payment Status Condition"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set": {
+      "main": [
+        [
+          {
+            "node": "Payment Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Inventory Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment Check": {
+      "main": [
+        [
+          {
+            "node": "Stripe Payment Verification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inventory Check": {
+      "main": [
+        [
+          {
+            "node": "Stock Check Condition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF Generator API": {
+      "main": [
+        [
+          {
+            "node": "Customer Invoice mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code to HTML": {
+      "main": [
+        [
+          {
+            "node": "PDF Generator API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stock Alert Condition": {
+      "main": [
+        [
+          {
+            "node": "Stock alert mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update stock": {
+      "main": [
+        [
+          {
+            "node": "Stock Alert Condition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sales Record Fetch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customer Invoice mail": {
+      "main": [
+        [
+          {
+            "node": "Sales Record Append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales Record Append": {
+      "main": [
+        [
+          {
+            "node": "Update stock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stock Check Condition": {
+      "main": [
+        [
+          {
+            "node": "Code to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stock not found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales Record Fetch": {
+      "main": [
+        [
+          {
+            "node": "Filtering Data for Chart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtering Data for Chart": {
+      "main": [
+        [
+          {
+            "node": "Sales Dashboard Append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Creating Chart": {
+      "main": [
+        [
+          {
+            "node": "Send an email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Log Append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales Dashboard Append": {
+      "main": [
+        [
+          {
+            "node": "Creating Chart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Payment Verification": {
+      "main": [
+        [
+          {
+            "node": "Stripe Payment Status Condition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stripe Payment Status Condition": {
+      "main": [
+        [
+          {
+            "node": "Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Payment Fail Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "f29b88e7-cf70-4482-929f-d62235fedb3c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "293045dcf37b6678bba0b6c6935da203631069c4433ff630c9a634abcde43333"
+  },
+  "id": "ywGimQaF6vwLoQEQ",
+  "tags": []
+}
