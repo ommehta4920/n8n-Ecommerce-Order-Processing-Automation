@@ -63,3 +63,4 @@ This repository contains my **Assessment Task for n8n**:
 
 ## Screenshot of Workflow
 
+![workflow](/screenshot/workflow-editor-screenshot.png)
